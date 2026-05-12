@@ -58,33 +58,72 @@ def extrair_utms(data: dict) -> dict:
         utms[c] = val or ""
     return utms
 
-# ── Webhook TheBank ──────────────────────────────────────────────────────────
+# ── Webhook TheMembers ───────────────────────────────────────────────────────
 
-@app.route("/webhook/thebank", methods=["POST"])
-def webhook_thebank():
+def extrair_utms_themembers(utms_raw) -> dict:
+    """Extrai UTMs do campo utms da TheMembers (pode ser lista ou dict)."""
+    campos = ["utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term"]
+    result = {c: "" for c in campos}
+    if isinstance(utms_raw, dict):
+        for c in campos:
+            result[c] = utms_raw.get(c) or ""
+    elif isinstance(utms_raw, list):
+        for item in utms_raw:
+            if isinstance(item, dict):
+                for c in campos:
+                    if not result[c]:
+                        result[c] = item.get(c) or ""
+    return result
+
+@app.route("/webhook/themembers", methods=["POST"])
+def webhook_themembers():
     try:
-        data = request.get_json(force=True) or {}
-        utms = extrair_utms(data)
+        body = request.get_json(force=True) or {}
+        payload = body.get("payload") or body
+        event = payload.get("event") or payload.get("tags", {}).get("event") or ""
+        data = payload.get("data") or {}
 
-        # Estrutura típica TheBank
-        order = data.get("order") or data
-        valor_raw = order.get("amount") or order.get("value") or order.get("total") or 0
+        # Só processa eventos de venda aprovada
+        status_map = {
+            "transaction.approved": "pago",
+            "order.completed": "pago",
+            "release.access": "pago",
+            "transaction.refunded": "reembolsado",
+            "transaction.charged_back": "chargeback",
+            "transaction.failed": "recusado",
+            "order.canceled": "cancelado",
+            "order.expired": "expirado",
+        }
+        status = status_map.get(event, event)
+
+        # Extrair order (pode estar em data.order ou direto em data)
+        order = data.get("order") or {}
+        cliente = (order.get("customer") or data.get("customer") or
+                   data.get("subscriber") or {})
+        if isinstance(cliente, str):
+            cliente = {}
+
+        # Produto
+        main_product = (order.get("main_product") or data.get("main_product") or
+                        data.get("product") or {})
+        produto = (main_product.get("title") or main_product.get("name") or
+                   data.get("product", {}).get("title") if isinstance(data.get("product"), dict) else None or "")
+
+        # Valor em centavos → reais
+        trans = data.get("transaction") or {}
+        valor_cents = (trans.get("amount") or trans.get("total_amount") or
+                       order.get("total") or main_product.get("price") or 0)
         try:
-            valor = float(str(valor_raw).replace(",", ".")) / 100  # centavos → reais
+            valor = float(valor_cents) / 100
         except:
             valor = 0.0
 
-        status_map = {
-            "paid": "pago", "approved": "pago", "completed": "pago",
-            "pending": "pendente", "waiting_payment": "pendente",
-            "refunded": "reembolsado", "cancelled": "cancelado", "chargeback": "chargeback"
-        }
-        status_raw = (order.get("status") or data.get("status") or "").lower()
-        status = status_map.get(status_raw, status_raw)
+        # UTMs
+        utms_raw = order.get("utms") or data.get("utms") or {}
+        utms = extrair_utms_themembers(utms_raw)
 
-        cliente = order.get("customer") or data.get("customer") or {}
-        if isinstance(cliente, str):
-            cliente = {}
+        # Order ID
+        order_id = str(order.get("id") or data.get("id") or payload.get("id") or "")
 
         with get_db() as conn:
             conn.execute("""
@@ -94,24 +133,29 @@ def webhook_thebank():
                    order_id, payload_raw, criado_em)
                 VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             """, (
-                "thebank",
-                order.get("product_name") or order.get("product") or data.get("product_name") or "",
+                "themembers",
+                produto,
                 valor,
                 status,
                 cliente.get("name") or cliente.get("full_name") or "",
                 cliente.get("email") or "",
                 utms["utm_source"], utms["utm_medium"], utms["utm_campaign"],
                 utms["utm_content"], utms["utm_term"],
-                order.get("id") or order.get("order_id") or data.get("id") or "",
-                json.dumps(data, ensure_ascii=False),
+                order_id,
+                json.dumps(body, ensure_ascii=False),
                 datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             ))
             conn.commit()
 
         return jsonify({"ok": True}), 200
     except Exception as e:
-        app.logger.error(f"Erro webhook thebank: {e}")
+        app.logger.error(f"Erro webhook themembers: {e}")
         return jsonify({"ok": False, "erro": str(e)}), 500
+
+# Alias para compatibilidade com URL antiga
+@app.route("/webhook/thebank", methods=["POST"])
+def webhook_thebank():
+    return webhook_themembers()
 
 # ── Webhook Kiwify ───────────────────────────────────────────────────────────
 

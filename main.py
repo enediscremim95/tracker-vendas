@@ -1,41 +1,43 @@
 from flask import Flask, request, jsonify, render_template_string, abort
-import sqlite3, os, json
+import os, json
 from datetime import datetime
+import psycopg2
+from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
-DB_PATH = os.environ.get("DB_PATH", "tracker.db")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 DASHBOARD_TOKEN = os.environ.get("DASHBOARD_TOKEN", "veritas2026")
 THEMEMBERS_TOKEN = os.environ.get("THEMEMBERS_TOKEN", "")
 
 # ── Banco ────────────────────────────────────────────────────────────────────
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
     return conn
 
 def init_db():
     with get_db() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS vendas (
-                id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                plataforma  TEXT,
-                produto     TEXT,
-                valor       REAL,
-                moeda       TEXT DEFAULT 'BRL',
-                status      TEXT,
-                cliente_nome TEXT,
-                cliente_email TEXT,
-                utm_source   TEXT,
-                utm_medium   TEXT,
-                utm_campaign TEXT,
-                utm_content  TEXT,
-                utm_term     TEXT,
-                order_id     TEXT,
-                payload_raw  TEXT,
-                criado_em    TEXT
-            )
-        """)
+        with conn.cursor() as cur:
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS vendas (
+                    id          SERIAL PRIMARY KEY,
+                    plataforma  TEXT,
+                    produto     TEXT,
+                    valor       NUMERIC(10,2),
+                    moeda       TEXT DEFAULT 'BRL',
+                    status      TEXT,
+                    cliente_nome TEXT,
+                    cliente_email TEXT,
+                    utm_source   TEXT,
+                    utm_medium   TEXT,
+                    utm_campaign TEXT,
+                    utm_content  TEXT,
+                    utm_term     TEXT,
+                    order_id     TEXT,
+                    payload_raw  TEXT,
+                    criado_em    TIMESTAMP DEFAULT NOW()
+                )
+            """)
         conn.commit()
 
 init_db()
@@ -134,13 +136,14 @@ def webhook_themembers():
         order_id = str(order.get("id") or data.get("id") or payload.get("id") or "")
 
         with get_db() as conn:
-            conn.execute("""
-                INSERT INTO vendas
-                  (plataforma, produto, valor, status, cliente_nome, cliente_email,
-                   utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-                   order_id, payload_raw, criado_em)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO vendas
+                      (plataforma, produto, valor, status, cliente_nome, cliente_email,
+                       utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+                       order_id, payload_raw, criado_em)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                """, (
                 "themembers",
                 produto,
                 valor,
@@ -150,8 +153,7 @@ def webhook_themembers():
                 utms["utm_source"], utms["utm_medium"], utms["utm_campaign"],
                 utms["utm_content"], utms["utm_term"],
                 order_id,
-                json.dumps(body, ensure_ascii=False),
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                json.dumps(body, ensure_ascii=False)
             ))
             conn.commit()
 
@@ -192,13 +194,14 @@ def webhook_kiwify():
             cliente = {}
 
         with get_db() as conn:
-            conn.execute("""
-                INSERT INTO vendas
-                  (plataforma, produto, valor, status, cliente_nome, cliente_email,
-                   utm_source, utm_medium, utm_campaign, utm_content, utm_term,
-                   order_id, payload_raw, criado_em)
-                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-            """, (
+            with conn.cursor() as cur:
+                cur.execute("""
+                    INSERT INTO vendas
+                      (plataforma, produto, valor, status, cliente_nome, cliente_email,
+                       utm_source, utm_medium, utm_campaign, utm_content, utm_term,
+                       order_id, payload_raw, criado_em)
+                    VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,NOW())
+                """, (
                 "kiwify",
                 order.get("product_name") or data.get("product_name") or "",
                 valor,
@@ -208,8 +211,7 @@ def webhook_kiwify():
                 utms["utm_source"], utms["utm_medium"], utms["utm_campaign"],
                 utms["utm_content"], utms["utm_term"],
                 order.get("order_id") or order.get("id") or data.get("order_id") or "",
-                json.dumps(data, ensure_ascii=False),
-                datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                json.dumps(data, ensure_ascii=False)
             ))
             conn.commit()
 
@@ -227,13 +229,13 @@ def health():
 # ── Dashboard ────────────────────────────────────────────────────────────────
 
 def periodo_filtro(periodo):
-    """Retorna cláusula SQL de data conforme período selecionado."""
+    """Retorna cláusula SQL de data conforme período selecionado (PostgreSQL)."""
     if periodo == "hoje":
-        return "AND date(criado_em) = date('now')"
+        return "AND criado_em::date = CURRENT_DATE"
     elif periodo == "7d":
-        return "AND criado_em >= datetime('now', '-7 days')"
+        return "AND criado_em >= NOW() - INTERVAL '7 days'"
     elif periodo == "30d":
-        return "AND criado_em >= datetime('now', '-30 days')"
+        return "AND criado_em >= NOW() - INTERVAL '30 days'"
     return ""  # tudo
 
 @app.route("/dashboard")
@@ -246,43 +248,57 @@ def dashboard():
     filtro = periodo_filtro(periodo)
 
     with get_db() as conn:
-        vendas = conn.execute(f"""
-            SELECT * FROM vendas WHERE status = 'pago' {filtro}
-            ORDER BY criado_em DESC
-        """).fetchall()
-        vendas = [dict(v) for v in vendas]
+        with conn.cursor() as cur:
+            cur.execute(f"""
+                SELECT * FROM vendas WHERE status = 'pago' {filtro}
+                ORDER BY criado_em DESC
+            """)
+            vendas = cur.fetchall()
+            vendas = [dict(v) for v in vendas]
+            # Converter datetime para string
+            for v in vendas:
+                if v.get("criado_em") and not isinstance(v["criado_em"], str):
+                    v["criado_em"] = v["criado_em"].strftime("%Y-%m-%d %H:%M")
 
-        por_campanha = conn.execute(f"""
-            SELECT utm_campaign, COUNT(*) as qtd, SUM(valor) as total
-            FROM vendas WHERE status='pago' AND utm_campaign != '' {filtro}
-            GROUP BY utm_campaign ORDER BY total DESC
-        """).fetchall()
+            cur.execute(f"""
+                SELECT utm_campaign, COUNT(*) as qtd, SUM(valor) as total
+                FROM vendas WHERE status='pago' AND utm_campaign != '' {filtro}
+                GROUP BY utm_campaign ORDER BY total DESC
+            """)
+            por_campanha = [dict(r) for r in cur.fetchall()]
 
-        por_fonte = conn.execute(f"""
-            SELECT utm_source, COUNT(*) as qtd, SUM(valor) as total
-            FROM vendas WHERE status='pago' AND utm_source != '' {filtro}
-            GROUP BY utm_source ORDER BY total DESC
-        """).fetchall()
+            cur.execute(f"""
+                SELECT utm_source, COUNT(*) as qtd, SUM(valor) as total
+                FROM vendas WHERE status='pago' AND utm_source != '' {filtro}
+                GROUP BY utm_source ORDER BY total DESC
+            """)
+            por_fonte = [dict(r) for r in cur.fetchall()]
 
-        por_criativo = conn.execute(f"""
-            SELECT utm_content, COUNT(*) as qtd, SUM(valor) as total
-            FROM vendas WHERE status='pago' AND utm_content != '' {filtro}
-            GROUP BY utm_content ORDER BY total DESC LIMIT 10
-        """).fetchall()
+            cur.execute(f"""
+                SELECT utm_content, COUNT(*) as qtd, SUM(valor) as total
+                FROM vendas WHERE status='pago' AND utm_content != '' {filtro}
+                GROUP BY utm_content ORDER BY total DESC LIMIT 10
+            """)
+            por_criativo = [dict(r) for r in cur.fetchall()]
 
-        resumo = conn.execute(f"""
-            SELECT COUNT(*) as total_vendas, SUM(valor) as receita_total,
-                   AVG(valor) as ticket_medio
-            FROM vendas WHERE status='pago' {filtro}
-        """).fetchone()
+            cur.execute(f"""
+                SELECT COUNT(*) as total_vendas, SUM(valor) as receita_total,
+                       AVG(valor) as ticket_medio
+                FROM vendas WHERE status='pago' {filtro}
+            """)
+            resumo = dict(cur.fetchone())
 
-        # Vendas por dia (últimos 30 dias para o gráfico)
-        por_dia = conn.execute("""
-            SELECT date(criado_em) as dia, COUNT(*) as qtd, SUM(valor) as total
-            FROM vendas WHERE status='pago'
-            AND criado_em >= datetime('now', '-30 days')
-            GROUP BY dia ORDER BY dia ASC
-        """).fetchall()
+            # Vendas por dia (últimos 30 dias para o gráfico)
+            cur.execute("""
+                SELECT criado_em::date AS dia, COUNT(*) as qtd, SUM(valor) as total
+                FROM vendas WHERE status='pago'
+                AND criado_em >= NOW() - INTERVAL '30 days'
+                GROUP BY dia ORDER BY dia ASC
+            """)
+            por_dia = [dict(r) for r in cur.fetchall()]
+            for r in por_dia:
+                if r.get("dia") and not isinstance(r["dia"], str):
+                    r["dia"] = r["dia"].strftime("%Y-%m-%d")
 
     return render_template_string(
         DASHBOARD_HTML,
@@ -304,15 +320,17 @@ def limpar_testes():
     if token != DASHBOARD_TOKEN:
         abort(403)
     with get_db() as conn:
-        result = conn.execute("""
-            DELETE FROM vendas
-            WHERE order_id LIKE 'TEST%'
-            OR cliente_email LIKE '%teste%'
-            OR cliente_email LIKE '%test%'
-            OR cliente_nome LIKE '%Teste%'
-        """)
+        with conn.cursor() as cur:
+            cur.execute("""
+                DELETE FROM vendas
+                WHERE order_id LIKE 'TEST%'
+                OR cliente_email LIKE '%teste%'
+                OR cliente_email LIKE '%test%'
+                OR cliente_nome LIKE '%Teste%'
+            """)
+            removidos = cur.rowcount
         conn.commit()
-    return jsonify({"ok": True, "removidos": result.rowcount})
+    return jsonify({"ok": True, "removidos": removidos})
 
 # ── Endpoint para ver payload bruto (debug) ──────────────────────────────────
 
@@ -322,8 +340,13 @@ def debug_vendas():
     if token != DASHBOARD_TOKEN:
         abort(403)
     with get_db() as conn:
-        rows = conn.execute("SELECT id, plataforma, criado_em, payload_raw FROM vendas ORDER BY id DESC LIMIT 20").fetchall()
-    return jsonify([dict(r) for r in rows])
+        with conn.cursor() as cur:
+            cur.execute("SELECT id, plataforma, criado_em, payload_raw FROM vendas ORDER BY id DESC LIMIT 20")
+            rows = [dict(r) for r in cur.fetchall()]
+    for r in rows:
+        if r.get("criado_em") and not isinstance(r["criado_em"], str):
+            r["criado_em"] = r["criado_em"].strftime("%Y-%m-%d %H:%M:%S")
+    return jsonify(rows)
 
 # ── HTML do Dashboard ────────────────────────────────────────────────────────
 
@@ -457,7 +480,7 @@ DASHBOARD_HTML = """
     <tr><th>Data</th><th>Produto</th><th>Valor</th><th>Campanha</th><th>Criativo</th></tr>
     {% for v in vendas[:50] %}
     <tr>
-      <td style="color:var(--muted)">{{ v.criado_em[:16] }}</td>
+      <td style="color:var(--muted)">{{ v.criado_em }}</td>
       <td>{{ v.produto or '-' }}</td>
       <td class="val-green">R$ {{ "%.0f"|format(v.valor) }}</td>
       <td>{{ v.utm_campaign or '-' }}</td>

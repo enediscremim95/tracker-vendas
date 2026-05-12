@@ -5,6 +5,7 @@ from datetime import datetime
 app = Flask(__name__)
 DB_PATH = os.environ.get("DB_PATH", "tracker.db")
 DASHBOARD_TOKEN = os.environ.get("DASHBOARD_TOKEN", "veritas2026")
+THEMEMBERS_TOKEN = os.environ.get("THEMEMBERS_TOKEN", "")
 
 # ── Banco ────────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,13 @@ def extrair_utms_themembers(utms_raw) -> dict:
 @app.route("/webhook/themembers", methods=["POST"])
 def webhook_themembers():
     try:
+        # Validar token de segurança
+        if THEMEMBERS_TOKEN:
+            sig = request.headers.get("x-signature", "")
+            if sig != THEMEMBERS_TOKEN:
+                app.logger.warning(f"Token inválido: {sig}")
+                return jsonify({"ok": False, "erro": "token inválido"}), 401
+
         body = request.get_json(force=True) or {}
         payload = body.get("payload") or body
         event = payload.get("event") or payload.get("tags", {}).get("event") or ""

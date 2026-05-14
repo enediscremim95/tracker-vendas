@@ -359,35 +359,115 @@ DASHBOARD_HTML = """
 <title>Performance — Gestar Bem</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
 <style>
-  :root { --bg:#0d0d0d; --card:#161616; --border:#222; --green:#00ff88; --text:#f0f0f0; --muted:#666; }
-  * { box-sizing:border-box; margin:0; padding:0; }
-  body { background:var(--bg); color:var(--text); font-family:'Inter',sans-serif; padding:24px; max-width:1200px; margin:0 auto; }
-  .header { display:flex; align-items:center; justify-content:space-between; margin-bottom:24px; flex-wrap:wrap; gap:12px; }
-  h1 { font-size:1.3rem; color:var(--green); }
-  .filtros { display:flex; gap:8px; }
-  .filtros a { padding:6px 14px; border-radius:20px; font-size:0.8rem; text-decoration:none; border:1px solid var(--border); color:var(--muted); transition:.2s; }
-  .filtros a.ativo { border-color:var(--green); color:var(--green); background:#00ff8810; }
-  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:16px; margin-bottom:24px; }
-  .card { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; }
-  .card .val { font-size:1.9rem; font-weight:700; color:var(--green); }
-  .card .label { font-size:0.78rem; color:var(--muted); margin-top:4px; text-transform:uppercase; letter-spacing:.5px; }
-  .section { background:var(--card); border:1px solid var(--border); border-radius:12px; padding:20px; margin-bottom:20px; }
-  .section-title { font-size:0.78rem; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:16px; }
-  table { width:100%; border-collapse:collapse; font-size:0.85rem; }
-  th { text-align:left; color:var(--muted); padding:8px 12px; border-bottom:1px solid var(--border); font-weight:500; font-size:0.78rem; }
-  td { padding:10px 12px; border-bottom:1px solid #1a1a1a; }
-  tr:last-child td { border-bottom:none; }
-  .val-green { color:var(--green); font-weight:600; }
-  .empty { color:var(--muted); font-size:0.85rem; text-align:center; padding:32px; }
-  .chart-wrap { height:180px; }
-  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
-  @media(max-width:640px){ .two-col{ grid-template-columns:1fr; } .header{ flex-direction:column; align-items:flex-start; } }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+:root {
+  --bg: #080808;
+  --card: #111;
+  --card2: #141414;
+  --border: #1e1e1e;
+  --green: #00ff88;
+  --green-dim: #00ff8818;
+  --green-mid: #00ff8840;
+  --text: #f0f0f0;
+  --muted: #555;
+  --muted2: #333;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body { background:var(--bg); color:var(--text); font-family:'Inter',system-ui,sans-serif; min-height:100vh; }
+
+/* ── LAYOUT ── */
+.wrap { max-width:1280px; margin:0 auto; padding:28px 20px; }
+
+/* ── TOPBAR ── */
+.topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:32px; flex-wrap:wrap; gap:14px; }
+.brand { display:flex; align-items:center; gap:10px; }
+.brand-dot { width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green); animation:pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.brand h1 { font-size:1.1rem; font-weight:600; color:var(--text); letter-spacing:-.3px; }
+.brand h1 span { color:var(--green); }
+.filtros { display:flex; gap:6px; background:var(--card); border:1px solid var(--border); border-radius:24px; padding:4px; }
+.filtros a { padding:6px 16px; border-radius:20px; font-size:0.78rem; font-weight:500; text-decoration:none; color:var(--muted); transition:.15s; }
+.filtros a.ativo { background:var(--green); color:#000; font-weight:600; }
+.filtros a:hover:not(.ativo) { color:var(--text); }
+
+/* ── KPI GRID ── */
+.kpi-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+.kpi { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px 20px; position:relative; overflow:hidden; }
+.kpi::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg,var(--green-dim) 0%,transparent 60%); pointer-events:none; }
+.kpi-icon { font-size:1.4rem; margin-bottom:10px; }
+.kpi-val { font-size:2rem; font-weight:700; color:var(--green); letter-spacing:-1px; line-height:1; }
+.kpi-label { font-size:0.72rem; color:var(--muted); text-transform:uppercase; letter-spacing:.8px; margin-top:6px; }
+
+/* ── CHART ── */
+.chart-card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px; margin-bottom:20px; }
+.card-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:18px; }
+.card-title { font-size:0.72rem; font-weight:600; text-transform:uppercase; letter-spacing:.8px; color:var(--muted); }
+.chart-legend { display:flex; gap:16px; }
+.legend-item { display:flex; align-items:center; gap:6px; font-size:0.72rem; color:var(--muted); }
+.legend-dot { width:8px; height:8px; border-radius:50%; }
+.chart-wrap { height:200px; }
+
+/* ── TWO-COL ── */
+.two-col { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-bottom:20px; }
+
+/* ── SECTION CARD ── */
+.scard { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:22px; }
+
+/* ── TABLE ── */
+table { width:100%; border-collapse:collapse; }
+th { font-size:0.68rem; font-weight:600; text-transform:uppercase; letter-spacing:.6px; color:var(--muted); padding:0 0 12px 0; border-bottom:1px solid var(--border); text-align:left; }
+td { padding:11px 0; border-bottom:1px solid var(--muted2); font-size:0.84rem; vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+.td-green { color:var(--green); font-weight:600; }
+.td-muted { color:var(--muted); font-size:0.78rem; }
+.badge-fonte { display:inline-flex; align-items:center; gap:5px; background:var(--muted2); border-radius:6px; padding:2px 8px; font-size:0.75rem; }
+
+/* ── CRIATIVOS com barra ── */
+.criativo-row { padding:10px 0; border-bottom:1px solid var(--muted2); }
+.criativo-row:last-child { border-bottom:none; }
+.criativo-top { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:0.83rem; }
+.criativo-name { color:var(--text); max-width:70%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.criativo-val { color:var(--green); font-weight:600; font-size:0.83rem; }
+.bar-track { background:var(--muted2); border-radius:4px; height:4px; }
+.bar-fill { background:linear-gradient(90deg,var(--green-mid),var(--green)); border-radius:4px; height:4px; transition:width .6s ease; }
+.criativo-meta { font-size:0.7rem; color:var(--muted); margin-top:4px; }
+
+/* ── FEED ── */
+.feed-item { display:flex; align-items:center; gap:14px; padding:12px 0; border-bottom:1px solid var(--muted2); }
+.feed-item:last-child { border-bottom:none; }
+.feed-dot { width:36px; height:36px; border-radius:10px; background:var(--green-dim); border:1px solid var(--green-mid); display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+.feed-info { flex:1; min-width:0; }
+.feed-prod { font-size:0.84rem; font-weight:500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.feed-camp { font-size:0.72rem; color:var(--muted); margin-top:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.feed-right { text-align:right; flex-shrink:0; }
+.feed-val { color:var(--green); font-weight:700; font-size:0.95rem; }
+.feed-time { font-size:0.7rem; color:var(--muted); margin-top:2px; }
+
+/* ── EMPTY ── */
+.empty { color:var(--muted); font-size:0.84rem; text-align:center; padding:40px 0; }
+
+/* ── FOOTER ── */
+.footer { text-align:center; font-size:0.7rem; color:var(--muted2); margin-top:32px; padding-top:20px; border-top:1px solid var(--border); }
+
+/* ── RESPONSIVE ── */
+@media(max-width:640px) {
+  .kpi-grid { grid-template-columns:1fr 1fr; }
+  .kpi-grid .kpi:last-child { grid-column:1/-1; }
+  .two-col { grid-template-columns:1fr; }
+  .topbar { flex-direction:column; align-items:flex-start; }
+  .kpi-val { font-size:1.6rem; }
+}
 </style>
 </head>
 <body>
+<div class="wrap">
 
-<div class="header">
-  <h1>Performance — Gestar Bem</h1>
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-dot"></div>
+    <h1>Performance <span>— Gestar Bem</span></h1>
+  </div>
   <div class="filtros">
     <a href="?token={{ token }}&periodo=hoje" class="{{ 'ativo' if periodo=='hoje' else '' }}">Hoje</a>
     <a href="?token={{ token }}&periodo=7d"   class="{{ 'ativo' if periodo=='7d'   else '' }}">7 dias</a>
@@ -396,58 +476,70 @@ DASHBOARD_HTML = """
   </div>
 </div>
 
-<!-- Cards resumo -->
-<div class="grid">
-  <div class="card">
-    <div class="val">{{ resumo.total_vendas or 0 }}</div>
-    <div class="label">Vendas pagas</div>
+<!-- KPIs -->
+<div class="kpi-grid">
+  <div class="kpi">
+    <div class="kpi-icon">💰</div>
+    <div class="kpi-val">R$ {{ "%.0f"|format(resumo.receita_total or 0) }}</div>
+    <div class="kpi-label">Receita total</div>
   </div>
-  <div class="card">
-    <div class="val">R$ {{ "%.0f"|format(resumo.receita_total or 0) }}</div>
-    <div class="label">Receita total</div>
+  <div class="kpi">
+    <div class="kpi-icon">🛒</div>
+    <div class="kpi-val">{{ resumo.total_vendas or 0 }}</div>
+    <div class="kpi-label">Vendas pagas</div>
   </div>
-  <div class="card">
-    <div class="val">R$ {{ "%.0f"|format(resumo.ticket_medio or 0) }}</div>
-    <div class="label">Ticket médio</div>
-  </div>
-</div>
-
-<!-- Gráfico vendas por dia -->
-<div class="section">
-  <div class="section-title">Vendas por dia (últimos 30 dias)</div>
-  <div class="chart-wrap">
-    <canvas id="grafico"></canvas>
+  <div class="kpi">
+    <div class="kpi-icon">🎯</div>
+    <div class="kpi-val">R$ {{ "%.0f"|format(resumo.ticket_medio or 0) }}</div>
+    <div class="kpi-label">Ticket médio</div>
   </div>
 </div>
 
-<!-- Campanha + Fonte lado a lado -->
+<!-- GRÁFICO -->
+<div class="chart-card">
+  <div class="card-header">
+    <span class="card-title">Receita por dia — últimos 30 dias</span>
+    <div class="chart-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:#00ff88"></div>Receita</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#ffffff44"></div>Vendas</div>
+    </div>
+  </div>
+  <div class="chart-wrap"><canvas id="grafico"></canvas></div>
+</div>
+
+<!-- CAMPANHA + FONTE -->
 <div class="two-col">
-  <div class="section">
-    <div class="section-title">Por Campanha</div>
+  <div class="scard">
+    <div class="card-header"><span class="card-title">Por Campanha</span></div>
     {% if por_campanha %}
     <table>
-      <tr><th>Campanha</th><th>Vendas</th><th>Receita</th></tr>
+      <tr><th>Campanha</th><th>Qtd</th><th>Receita</th></tr>
       {% for r in por_campanha %}
       <tr>
-        <td>{{ r.utm_campaign }}</td>
-        <td>{{ r.qtd }}</td>
-        <td class="val-green">R$ {{ "%.0f"|format(r.total) }}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="{{ r.utm_campaign }}">{{ r.utm_campaign }}</td>
+        <td class="td-muted">{{ r.qtd }}</td>
+        <td class="td-green">R$ {{ "%.0f"|format(r.total) }}</td>
       </tr>
       {% endfor %}
     </table>
     {% else %}<p class="empty">Sem dados ainda</p>{% endif %}
   </div>
 
-  <div class="section">
-    <div class="section-title">Por Fonte</div>
+  <div class="scard">
+    <div class="card-header"><span class="card-title">Por Fonte</span></div>
     {% if por_fonte %}
     <table>
-      <tr><th>Fonte</th><th>Vendas</th><th>Receita</th></tr>
+      <tr><th>Fonte</th><th>Qtd</th><th>Receita</th></tr>
       {% for r in por_fonte %}
       <tr>
-        <td>{{ r.utm_source }}</td>
-        <td>{{ r.qtd }}</td>
-        <td class="val-green">R$ {{ "%.0f"|format(r.total) }}</td>
+        <td>
+          <span class="badge-fonte">
+            {% if 'facebook' in (r.utm_source or '') or 'fb' in (r.utm_source or '') %}📘{% elif 'google' in (r.utm_source or '') %}🟡{% elif 'instagram' in (r.utm_source or '') %}📸{% else %}🔗{% endif %}
+            {{ r.utm_source or 'direto' }}
+          </span>
+        </td>
+        <td class="td-muted">{{ r.qtd }}</td>
+        <td class="td-green">R$ {{ "%.0f"|format(r.total) }}</td>
       </tr>
       {% endfor %}
     </table>
@@ -455,68 +547,121 @@ DASHBOARD_HTML = """
   </div>
 </div>
 
-<!-- Criativos -->
-<div class="section">
-  <div class="section-title">Por Criativo (top 10)</div>
+<!-- CRIATIVOS -->
+<div class="scard" style="margin-bottom:20px">
+  <div class="card-header"><span class="card-title">Criativos — top 10</span></div>
   {% if por_criativo %}
-  <table>
-    <tr><th>Criativo</th><th>Vendas</th><th>Receita</th></tr>
-    {% for r in por_criativo %}
-    <tr>
-      <td>{{ r.utm_content }}</td>
-      <td>{{ r.qtd }}</td>
-      <td class="val-green">R$ {{ "%.0f"|format(r.total) }}</td>
-    </tr>
-    {% endfor %}
-  </table>
+  {% set max_total = por_criativo[0].total %}
+  {% for r in por_criativo %}
+  <div class="criativo-row">
+    <div class="criativo-top">
+      <span class="criativo-name" title="{{ r.utm_content }}">{{ r.utm_content }}</span>
+      <span class="criativo-val">R$ {{ "%.0f"|format(r.total) }}</span>
+    </div>
+    <div class="bar-track">
+      <div class="bar-fill" style="width:{{ ((r.total / max_total) * 100)|int }}%"></div>
+    </div>
+    <div class="criativo-meta">{{ r.qtd }} venda{{ 's' if r.qtd != 1 else '' }}</div>
+  </div>
+  {% endfor %}
   {% else %}<p class="empty">Sem dados ainda</p>{% endif %}
 </div>
 
-<!-- Últimas vendas -->
-<div class="section">
-  <div class="section-title">Últimas vendas</div>
+<!-- ÚLTIMAS VENDAS -->
+<div class="scard">
+  <div class="card-header"><span class="card-title">Últimas vendas</span></div>
   {% if vendas %}
-  <table>
-    <tr><th>Data</th><th>Produto</th><th>Valor</th><th>Campanha</th><th>Criativo</th></tr>
-    {% for v in vendas[:50] %}
-    <tr>
-      <td style="color:var(--muted)">{{ v.criado_em }}</td>
-      <td>{{ v.produto or '-' }}</td>
-      <td class="val-green">R$ {{ "%.0f"|format(v.valor) }}</td>
-      <td>{{ v.utm_campaign or '-' }}</td>
-      <td>{{ v.utm_content or '-' }}</td>
-    </tr>
-    {% endfor %}
-  </table>
+  {% for v in vendas[:30] %}
+  <div class="feed-item">
+    <div class="feed-dot">💳</div>
+    <div class="feed-info">
+      <div class="feed-prod">{{ v.cliente_nome or v.produto or 'Venda' }}</div>
+      <div class="feed-camp">{{ v.utm_campaign or 'sem campanha' }}{% if v.utm_content %} · {{ v.utm_content }}{% endif %}</div>
+    </div>
+    <div class="feed-right">
+      <div class="feed-val">R$ {{ "%.0f"|format(v.valor) }}</div>
+      <div class="feed-time">{{ v.criado_em }}</div>
+    </div>
+  </div>
+  {% endfor %}
   {% else %}
-  <p class="empty">Nenhuma venda ainda. Aguardando primeiros webhooks.</p>
+  <p class="empty">⏳ Aguardando primeiras vendas...</p>
   {% endif %}
 </div>
 
-<script>
-const dias  = {{ por_dia | map(attribute='dia')   | list | tojson }};
-const qtds  = {{ por_dia | map(attribute='qtd')   | list | tojson }};
-const tots  = {{ por_dia | map(attribute='total') | list | tojson }};
+<div class="footer">performance.programagestarbem.com.br · atualiza a cada venda</div>
 
-new Chart(document.getElementById('grafico'), {
-  type: 'bar',
+</div><!-- /wrap -->
+
+<script>
+const dias = {{ por_dia | map(attribute='dia')   | list | tojson }};
+const qtds = {{ por_dia | map(attribute='qtd')   | list | tojson }};
+const tots = {{ por_dia | map(attribute='total') | list | tojson }};
+
+const ctx = document.getElementById('grafico').getContext('2d');
+new Chart(ctx, {
   data: {
     labels: dias,
-    datasets: [{
-      label: 'Receita (R$)',
-      data: tots.map(v => (v/1).toFixed(2)),
-      backgroundColor: '#00ff8830',
-      borderColor: '#00ff88',
-      borderWidth: 1,
-      borderRadius: 4,
-    }]
+    datasets: [
+      {
+        type: 'bar',
+        label: 'Receita (R$)',
+        data: tots.map(v => parseFloat(v)||0),
+        backgroundColor: '#00ff8825',
+        borderColor: '#00ff88',
+        borderWidth: 1.5,
+        borderRadius: 5,
+        yAxisID: 'y',
+        order: 2,
+      },
+      {
+        type: 'line',
+        label: 'Vendas',
+        data: qtds,
+        borderColor: '#ffffff55',
+        backgroundColor: '#ffffff08',
+        borderWidth: 1.5,
+        pointRadius: 3,
+        pointBackgroundColor: '#ffffff88',
+        tension: 0.4,
+        fill: true,
+        yAxisID: 'y2',
+        order: 1,
+      }
+    ]
   },
   options: {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false } },
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode:'index', intersect:false },
+    plugins: {
+      legend: { display:false },
+      tooltip: {
+        backgroundColor: '#1a1a1a',
+        borderColor: '#2a2a2a',
+        borderWidth: 1,
+        titleColor: '#888',
+        bodyColor: '#f0f0f0',
+        padding: 10,
+        callbacks: {
+          label: ctx => ctx.dataset.label === 'Receita (R$)'
+            ? ' R$ ' + ctx.parsed.y.toFixed(0)
+            : ' ' + ctx.parsed.y + ' venda(s)'
+        }
+      }
+    },
     scales: {
-      x: { ticks: { color:'#666', font:{size:10} }, grid:{ color:'#1a1a1a' } },
-      y: { ticks: { color:'#666', font:{size:10}, callback: v => 'R$'+v }, grid:{ color:'#1a1a1a' } }
+      x: { ticks:{ color:'#444', font:{size:10} }, grid:{ color:'#151515' } },
+      y: {
+        position:'left',
+        ticks:{ color:'#444', font:{size:10}, callback: v => 'R$'+v },
+        grid:{ color:'#151515' }
+      },
+      y2: {
+        position:'right',
+        ticks:{ color:'#333', font:{size:10}, stepSize:1 },
+        grid:{ display:false }
+      }
     }
   }
 });

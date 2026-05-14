@@ -491,6 +491,7 @@ body{background:var(--bg);color:var(--text);font-family:'Inter',system-ui,sans-s
 .brand{display:flex;align-items:center;gap:10px}
 .brand-dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);animation:pulse 2s infinite}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
 .brand h1{font-size:1.1rem;font-weight:600;letter-spacing:-.3px}
 .brand h1 span{color:var(--green)}
 .filtros{display:flex;gap:6px;background:var(--card);border:1px solid var(--border);border-radius:24px;padding:4px}
@@ -627,11 +628,16 @@ tr:last-child td{border-bottom:none}
     <div class="brand-dot"></div>
     <h1>Performance <span>— Gestar Bem</span></h1>
   </div>
-  <div class="filtros">
-    <a href="?token={{ token }}&periodo=hoje" class="{{ 'ativo' if periodo=='hoje' else '' }}">Hoje</a>
-    <a href="?token={{ token }}&periodo=7d"   class="{{ 'ativo' if periodo=='7d'   else '' }}">7 dias</a>
-    <a href="?token={{ token }}&periodo=30d"  class="{{ 'ativo' if periodo=='30d'  else '' }}">30 dias</a>
-    <a href="?token={{ token }}&periodo=tudo" class="{{ 'ativo' if periodo=='tudo' else '' }}">Tudo</a>
+  <div style="display:flex;gap:8px;align-items:center">
+    <div class="filtros">
+      <a href="?token={{ token }}&periodo=hoje" class="{{ 'ativo' if periodo=='hoje' else '' }}">Hoje</a>
+      <a href="?token={{ token }}&periodo=7d"   class="{{ 'ativo' if periodo=='7d'   else '' }}">7 dias</a>
+      <a href="?token={{ token }}&periodo=30d"  class="{{ 'ativo' if periodo=='30d'  else '' }}">30 dias</a>
+      <a href="?token={{ token }}&periodo=tudo" class="{{ 'ativo' if periodo=='tudo' else '' }}">Tudo</a>
+    </div>
+    <button onclick="atualizar()" id="btn-refresh" style="background:var(--card);border:1px solid var(--border);border-radius:24px;padding:6px 16px;color:var(--muted);font-size:.78rem;font-weight:500;cursor:pointer;font-family:inherit;transition:.15s;display:flex;align-items:center;gap:6px" onmouseover="this.style.color='var(--text)'" onmouseout="this.style.color='var(--muted)'">
+      <span id="refresh-icon">↻</span> Atualizar
+    </button>
   </div>
 </div>
 
@@ -1035,6 +1041,13 @@ async function deletarLink(id) {
   if (!confirm('Remover este link?')) return;
   await fetch('/links/deletar/'+id+'?token='+TOKEN, {method:'DELETE'});
   carregarLinks();
+}
+
+function atualizar() {
+  const icon = document.getElementById('refresh-icon');
+  icon.style.display = 'inline-block';
+  icon.style.animation = 'spin .6s linear infinite';
+  setTimeout(() => location.reload(), 300);
 }
 
 function escHtml(s) {

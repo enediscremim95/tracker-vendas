@@ -98,9 +98,15 @@ def extrair_utms_themembers(utms_raw) -> dict:
 def webhook_themembers():
     try:
         if THEMEMBERS_TOKEN:
-            sig = request.headers.get("x-signature", "")
+            # TheMembers pode mandar o token em headers diferentes ou no body
+            sig = (request.headers.get("x-signature") or
+                   request.headers.get("x-webhook-token") or
+                   request.headers.get("authorization", "").replace("Bearer ", "") or
+                   (request.get_json(force=True, silent=True) or {}).get("token") or "")
             if sig != THEMEMBERS_TOKEN:
-                app.logger.warning(f"Token inválido: {sig}")
+                app.logger.warning(f"Token inválido recebido: '{sig[:20]}...' esperado: '{THEMEMBERS_TOKEN[:10]}...'")
+                # Logar headers para diagnóstico sem bloquear (modo debug)
+                app.logger.warning(f"Headers recebidos: {dict(request.headers)}")
                 return jsonify({"ok": False, "erro": "token inválido"}), 401
 
         body    = request.get_json(force=True) or {}

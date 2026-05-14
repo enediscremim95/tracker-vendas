@@ -629,13 +629,7 @@ tr:last-child td{border-bottom:none}
   </div>
 </div>
 
-<!-- ABAS -->
-<div class="abas">
-  <button class="aba-btn ativa" id="btn-vendas" onclick="showAba('vendas')">📊 Vendas</button>
-  <button class="aba-btn"       id="btn-links"  onclick="showAba('links')">🔗 Links UTM</button>
-</div>
-
-<!-- ════ ABA: VENDAS ════ -->
+<!-- ════ VENDAS ════ -->
 <div id="aba-vendas">
 
 <!-- KPIs -->
@@ -756,7 +750,7 @@ tr:last-child td{border-bottom:none}
 
 </div><!-- /aba-vendas -->
 
-<!-- ════ ABA: LINKS UTM ════ -->
+<!-- ════ LINKS UTM — oculto, acessível via /links/stats ════ -->
 <div id="aba-links" style="display:none">
 
 <!-- GERADOR -->
